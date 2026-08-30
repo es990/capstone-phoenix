@@ -1,0 +1,129 @@
+kubectl get application taskapp -n argocd -w
+NAME      SYNC STATUS   HEALTH STATUS
+taskapp   Synced        Progressing
+taskapp   Synced        Healthy
+taskapp   Synced        Progressing
+taskapp   Synced        Healthy
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get pods -n taskapp -l app=frontend -w-w
+NAME                        READY   STATUS    RESTARTS   AGE
+frontend-7b5f4fb7b5-kblvf   1/1     Running   0          57m
+frontend-7b5f4fb7b5-n59bx   1/1     Running   0          101s
+frontend-7b5f4fb7b5-n8f8s   1/1     Running   0          57m
+frontend-7b5f4fb7b5-n59bx   1/1     Terminating   0          9m38s
+frontend-7b5f4fb7b5-n59bx   1/1     Terminating   0          9m38s
+frontend-7b5f4fb7b5-n59bx   0/1     Completed     0          9m38s
+frontend-7b5f4fb7b5-n59bx   0/1     Completed     0          9m39s
+frontend-7b5f4fb7b5-n59bx   0/1     Completed     0          9m39s
+frontend-7b5f4fb7b5-n59bx   0/1     Completed     0          9m39s
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get nodes -o wide
+NAME             STATUS   ROLES           AGE   VERSION        INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION           CONTAINER-RUNTIME
+ip-10-20-1-108   Ready    control-plane   14h   v1.36.0+k3s1   10.20.1.108   <none>        Ubuntu 22.04.5 LTS   6.8.0-1061-aws (amd64)   containerd://2.2.3-k3s1
+ip-10-20-1-130   Ready    <none>          14h   v1.36.0+k3s1   10.20.1.130   <none>        Ubuntu 22.04.5 LTS   6.8.0-1061-aws (amd64)   containerd://2.2.3-k3s1
+ip-10-20-2-206   Ready    <none>          14h   v1.36.0+k3s1   10.20.2.206   <none>        Ubuntu 22.04.5 LTS   6.8.0-1061-aws (amd64)   containerd://2.2.3-k3s1
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get pods -n taskapp -o wide -l app=backend
+NAME                       READY   STATUS    RESTARTS   AGE     IP           NODE             NOMINATED NODE   READINESS GATES
+backend-68d6d89c54-68n8j   1/1     Running   0          69m     10.42.0.16   ip-10-20-1-108   <none>           <none>
+backend-68d6d89c54-97pjl   1/1     Running   0          4m57s   10.42.2.19   ip-10-20-2-206   <none>           <none>
+backend-68d6d89c54-j5xjj   1/1     Running   0          4m27s   10.42.2.20   ip-10-20-2-206   <none>           <none>
+backend-68d6d89c54-kbnhw   1/1     Running   0          4m27s   10.42.0.19   ip-10-20-1-108   <none>           <none>
+backend-68d6d89c54-t65n2   1/1     Running   0          4m57s   10.42.1.14   ip-10-20-1-130   <none>           <none>
+backend-68d6d89c54-v6vkb   1/1     Running   0          69m     10.42.1.10   ip-10-20-1-130   <none>           <none>
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get pods -n taskapp -o wide -l app=frontend
+NAME                        READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE   READINESS GATES
+frontend-7b5f4fb7b5-kblvf   1/1     Running   0          71m   10.42.1.8    ip-10-20-1-130   <none>           <none>
+frontend-7b5f4fb7b5-n8f8s   1/1     Running   0          71m   10.42.0.13   ip-10-20-1-108   <none>           <none>
+
+git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   manifests/frontend/deployment.yaml
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        aws/
+        awscliv2.zip
+
+no changes added to commit (use "git add" and/or "git commit -a")
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ git add manifests/frontend/deployment.yaml
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ git commit -m "scaled up to 3 replicas"
+[main b315430] scaled up to 3 replicas
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ git push
+Enumerating objects: 9, done.
+Counting objects: 100% (9/9), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (5/5), done.
+Writing objects: 100% (5/5), 448 bytes | 44.00 KiB/s, done.
+Total 5 (delta 3), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (3/3), completed with 3 local objects.
+To https://github.com/es990/capstone-phoenix.git
+   ff85a05..b315430  main -> main
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   manifests/frontend/deployment.yaml
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        aws/
+        awscliv2.zip
+
+no changes added to commit (use "git add" and/or "git commit -a")
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ git add manifests/frontend/deployment.yamlamara@DESKTOP-A3L692L:~/capstone-phoenix$ git commit -m "scale back down to 2 replicas"
+[main e68d060] scale back down to 2 replicas
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ git push
+Enumerating objects: 9, done.
+Counting objects: 100% (9/9), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (5/5), done.
+Writing objects: 100% (5/5), 453 bytes | 41.00 KiB/s, done.
+Total 5 (delta 3), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (3/3), completed with 3 local objects.
+To https://github.com/es990/capstone-phoenix.git
+   b315430..e68d060  main -> main
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get application taskapp -n argocd -w
+NAME      SYNC STATUS   HEALTH STATUS
+taskapp   Synced        Healthy
+taskapp   Synced        Healthy
+taskapp   Synced        Healthy
+taskapp   OutOfSync     Healthy
+taskapp   Synced        Healthy
+taskapp   Synced        Healthy
+taskapp   Synced        Healthy
+taskapp   Synced        Healthy
+taskapp   Synced        Healthy
+taskapp   Synced        Healthy
+taskapp   Synced        Progressing
+taskapp   Synced        Progressing
+taskapp   Synced        Progressing
+taskapp   Synced        Progressing
+taskapp   Synced        Healthy
+taskapp   Synced        Progressing
+taskapp   Synced        Healthy
+
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ curl -vI https://taskapp.amara.51.20.201.173.nip.io 2>&1 | grep -A5 "Server certificate"
+* Server certificate:
+*   subject: CN=taskapp.amara.51.20.201.173.nip.io
+*   start date: Aug 29 22:38:36 2026 GMT
+*   expire date: Nov 27 22:38:35 2026 GMT
+*   issuer: C=US; O=Let's Encrypt; CN=YR2
+*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get hpa backend -n taskapp -w
+NAME      REFERENCE            TARGETS                         MINPODS   MAXPODS   REPLICAS   AGE
+backend   Deployment/backend   cpu: 1%/70%, memory: 122%/80%   2         6         6          83m
+backend   Deployment/backend   cpu: 1%/70%, memory: 122%/80%   2         6         6          83m
+^Camara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get application taskapp -n argocdcd
+Error from server (NotFound): namespaces "argocdcd" not found
+amara@DESKTOP-A3L692L:~/capstone-phoenix$ kubectl get application taskapp -n argocd
+NAME      SYNC STATUS   HEALTH STATUS
+taskapp   Synced        Healthy
