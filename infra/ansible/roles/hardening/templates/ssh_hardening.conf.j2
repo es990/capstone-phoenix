@@ -1,0 +1,7 @@
+# Managed by Ansible (hardening role) - do not edit by hand.
+# Sorted "00-" so it is read before cloud-init's own 50-cloud-init.conf,
+# guaranteeing these stricter values win (sshd uses first-match-wins).
+PermitRootLogin no
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+X11Forwarding no

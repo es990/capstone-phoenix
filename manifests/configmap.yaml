@@ -1,0 +1,20 @@
+# Non-secret configuration only. Split mirrors your Compose .env: values
+# that were safe to commit (host, port, db name, env mode) live here;
+# anything sensitive (credentials, SECRET_KEY) lives in the Secret instead.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taskapp-config
+  namespace: taskapp
+data:
+  POSTGRES_HOST: "postgres"        # matches the headless Service name below
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "taskapp"
+  FLASK_ENV: "production"
+  # The app's actual migrations/env.py reads DATABASE_* names, not
+  # POSTGRES_* (confirmed on the cluster - see manifests/README.md).
+  # POSTGRES_* above stays too - the official postgres image needs those
+  # exact names for its own first-boot initialization.
+  DATABASE_HOST: "postgres"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "taskapp"

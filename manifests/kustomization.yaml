@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: taskapp
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  # secret.example.yaml is deliberately NOT listed here - the real Secret
+  # is created out-of-band. See README.md.
+  - postgres/service.yaml
+  - postgres/statefulset.yaml
+  - backend/deployment.yaml
+  - backend/service.yaml
+  - backend/hpa.yaml
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+  - migration-job.yaml
+  - ingress.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+
+# The ONE place to set your actual pinned image tags - edit newTag below,
+# nothing else in this folder needs to change.
+images:
+  - name: ghcr.io/ts-a-devops/taskapp-backend
+    newTag: "5d6b8fc"
+  - name: ghcr.io/ts-a-devops/taskapp-frontend
+    newTag: "26da2b0"

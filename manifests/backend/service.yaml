@@ -1,0 +1,16 @@
+# Name MUST be exactly "backend" - the frontend image's nginx config
+# proxies /api to http://backend:5000 internally. Don't rename this.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: taskapp
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000

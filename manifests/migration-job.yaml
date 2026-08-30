@@ -1,0 +1,56 @@
+# Run-once migration, deliberately NOT baked into the backend Deployment's
+# entrypoint - at 2+ replicas, every Pod starting up would independently
+# race on `alembic upgrade head` against the same database.
+#
+# Wired as an Argo CD PostSync hook (see annotations below), NOT PreSync -
+# PreSync was tried first and created a real deadlock: the Job needs
+# taskapp-config/taskapp-secret via envFrom, but PreSync hooks run BEFORE
+# Argo applies any regular resources (including the ConfigMap) - so the Job
+# could never succeed, and Argo could never advance past PreSync to create
+# the ConfigMap that would have fixed it. Confirmed the hard way on a live
+# cluster. PostSync runs after Sync-phase resources are applied AND
+# healthy, so the ConfigMap/Secret and Postgres already exist by the time
+# this runs. BeforeHookCreation still deletes the previous run first.
+#
+# Tradeoff worth knowing: backend/frontend can become "Healthy" (probes
+# passing) slightly before migrations finish, since readiness probes don't
+# necessarily require a migrated schema. Brief window of possible errors
+# on schema-dependent endpoints right after a sync - far better than the
+# hard deadlock PreSync caused.
+#
+# For manual/pre-GitOps use, the old workflow still works fine:
+#   kubectl apply -f manifests/migration-job.yaml
+#   kubectl wait --for=condition=complete job/taskapp-migrate -n taskapp --timeout=120s
+#   kubectl delete job taskapp-migrate -n taskapp
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: taskapp-migrate
+  namespace: taskapp
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: taskapp-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/ts-a-devops/taskapp-backend:5d6b8fc # keep in sync with backend/deployment.yaml
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: taskapp-config
+            - secretRef:
+                name: taskapp-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

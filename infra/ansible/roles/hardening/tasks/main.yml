@@ -1,0 +1,138 @@
+---
+# hardening role
+# Applies to every node in k3s_cluster (both server and agents).
+#
+# Covers the brief's 4 bullets:
+#   - non-root user       -> already true (we connect as `ubuntu`, never root);
+#                             this role locks that in by disabling root SSH login outright.
+#   - SSH-keys-only        -> drop-in sshd config, overrides cloud-init's default.
+#   - firewall              -> UFW rules that mirror the Terraform security groups,
+#                             so even if a security group were ever misconfigured,
+#                             the host itself still refuses the same traffic.
+#   - fail2ban (optional)  -> included, enabled by default.
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install hardening packages
+  ansible.builtin.apt:
+    name: "{{ hardening_packages }}"
+    state: present
+
+# --- SSH lockdown -------------------------------------------------------
+# Ubuntu's cloud-init ships /etc/ssh/sshd_config.d/50-cloud-init.conf, and
+# because sshd uses first-match-wins semantics, a file we drop in that
+# sorts BEFORE it (00-) is what actually takes effect - editing the base
+# sshd_config directly would silently lose to cloud-init's own file.
+- name: Enforce SSH hardening (key-only, no root login) via drop-in config
+  ansible.builtin.template:
+    src: ssh_hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "/usr/sbin/sshd -t -f %s"
+  notify: restart sshd
+
+# --- Firewall -------------------------------------------------------------
+# Mirrors infra/terraform/modules/security_group exactly:
+#   22        - open (the security group already restricts source to your IP)
+#   80/443    - server only
+#   6443      - server only: from the VPC (agents) and from whoever is
+#               currently running this playbook (for kubectl access).
+#   8472/udp  - internal (VPC CIDR) only, all nodes
+#   10250/tcp - internal (VPC CIDR) only, all nodes
+#   30000-32767/tcp - internal (VPC CIDR) only, agents only
+- name: Allow SSH via UFW
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+
+- name: Allow HTTP/HTTPS via UFW (server only)
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "80"
+    - "443"
+  when: "'server' in group_names"
+
+- name: Allow Kubernetes API (6443) from the VPC (agents need this to join)
+  community.general.ufw:
+    rule: allow
+    port: "6443"
+    proto: tcp
+    src: "{{ vpc_cidr }}"
+  when: "'server' in group_names"
+
+- name: Discover the current admin public IP (drifts often - looked up fresh every run)
+  ansible.builtin.set_fact:
+    admin_cidr: "{{ lookup('pipe', 'curl -s --max-time 5 https://ifconfig.me') }}/32"
+  when: "'server' in group_names"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Allow Kubernetes API (6443) from the current admin IP (for kubectl)
+  community.general.ufw:
+    rule: allow
+    port: "6443"
+    proto: tcp
+    src: "{{ admin_cidr }}"
+  when: "'server' in group_names"
+
+- name: Allow Flannel VXLAN from the VPC only
+  community.general.ufw:
+    rule: allow
+    port: "8472"
+    proto: udp
+    src: "{{ vpc_cidr }}"
+
+- name: Allow kubelet API from the VPC only
+  community.general.ufw:
+    rule: allow
+    port: "10250"
+    proto: tcp
+    src: "{{ vpc_cidr }}"
+
+- name: Allow NodePort range from the VPC only (agents only)
+  community.general.ufw:
+    rule: allow
+    port: "30000:32767"
+    proto: tcp
+    src: "{{ vpc_cidr }}"
+  when: "'agents' in group_names"
+
+- name: Set UFW default policy to deny incoming
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Set UFW default policy to allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+# --- fail2ban -------------------------------------------------------------
+- name: Configure fail2ban jail for sshd
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart fail2ban
+
+- name: Ensure fail2ban is enabled and running
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: true
+    state: started

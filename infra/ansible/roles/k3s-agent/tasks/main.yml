@@ -1,0 +1,48 @@
+---
+# k3s-agent role
+# Joins this node to the cluster as a worker, using the server's private IP
+# (already present as a host var in the Terraform-generated inventory) and
+# the token the k3s-server role fetched to the Ansible controller.
+
+- name: Confirm the node token has been fetched from the server
+  ansible.builtin.stat:
+    path: "{{ k3s_node_token_cache }}"
+  delegate_to: localhost
+  become: false
+  register: k3s_token_file
+
+- name: Fail with a clear message if the server role hasn't run yet
+  ansible.builtin.fail:
+    msg: >-
+      No cached node token found at {{ k3s_node_token_cache }}.
+      Run the k3s-server role (or the full site.yml) against the `server`
+      group first - the agent needs the token it produces to join.
+  when: not k3s_token_file.stat.exists
+
+- name: Read the node token from the local cache
+  ansible.builtin.set_fact:
+    k3s_node_token: "{{ lookup('file', k3s_node_token_cache) | trim }}"
+
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Install k3s agent
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="{{ k3s_version }}" \
+      K3S_URL="https://{{ hostvars[groups['server'][0]]['private_ip'] }}:6443" \
+      K3S_TOKEN="{{ k3s_node_token }}" \
+      sh -
+  args:
+    creates: /usr/local/bin/k3s
+  register: k3s_install_result
+  no_log: true # the command line contains the join token
+
+- name: Ensure k3s-agent service is enabled and running
+  ansible.builtin.systemd:
+    name: k3s-agent
+    enabled: true
+    state: started
+    daemon_reload: true

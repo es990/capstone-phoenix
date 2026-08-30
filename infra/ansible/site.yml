@@ -1,0 +1,23 @@
+---
+# infra/ansible/site.yml
+# Run in order: harden every node, stand up the server, join the agents.
+# Plays execute sequentially within one ansible-playbook run, so the
+# server's node token is always ready before the agent play needs it.
+
+- name: Harden all cluster nodes
+  hosts: k3s_cluster
+  become: true
+  roles:
+    - hardening
+
+- name: Install and start the k3s server (control-plane)
+  hosts: server
+  become: true
+  roles:
+    - k3s-server
+
+- name: Join agents (workers) to the cluster
+  hosts: agents
+  become: true
+  roles:
+    - k3s-agent

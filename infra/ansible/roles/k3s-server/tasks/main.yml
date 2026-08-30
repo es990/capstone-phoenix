@@ -1,0 +1,72 @@
+---
+# k3s-server role
+# Installs k3s in server (control-plane) mode. One server is intentional -
+# the capstone brief explicitly doesn't require HA/multi-master here, so k3s
+# uses its default embedded SQLite datastore rather than etcd.
+
+- name: Ensure /etc/rancher/k3s exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure k3s TLS SAN (so the API cert is valid for the public IP too)
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart k3s
+
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Install k3s server
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="{{ k3s_version }}" \
+      INSTALL_K3S_EXEC="server {{ k3s_server_extra_args }}" \
+      sh -
+  args:
+    creates: /usr/local/bin/k3s
+  register: k3s_install_result
+
+- name: Ensure k3s service is enabled and running
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for the node-token file to be written
+  ansible.builtin.wait_for:
+    path: /var/lib/rancher/k3s/server/node-token
+    timeout: 120
+
+- name: Wait for the kubeconfig to be written
+  ansible.builtin.wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    timeout: 60
+
+- name: Wait for the API server to actually answer (not just the process running)
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw=/readyz
+  register: k3s_readyz
+  until: k3s_readyz.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+
+# Fetched to the Ansible controller (not just held as an in-memory fact) so
+# the k3s-agent role can join nodes independently later - e.g. adding a 4th
+# agent afterward - without needing to re-run this server play in the same
+# execution. This file is local-only and gitignored; it never touches git.
+- name: Fetch the node token to the Ansible controller
+  ansible.builtin.fetch:
+    src: /var/lib/rancher/k3s/server/node-token
+    dest: "{{ k3s_node_token_cache }}"
+    flat: true

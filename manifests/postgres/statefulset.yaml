@@ -1,0 +1,82 @@
+# Single Postgres instance is intentional for Core - true HA Postgres
+# (Patroni, CloudNativePG, or a managed DB) is a Stretch goal, not required.
+# What Core actually asks for is *real persistent storage that survives a
+# Pod being deleted and rescheduled* - which a StatefulSet + PVC gives you
+# regardless of replica count.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: taskapp
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - configMapRef:
+                name: taskapp-config
+            - secretRef:
+                name: taskapp-secret
+          env:
+            # PGDATA in a subdirectory of the mount - avoids "lost+found"
+            # from tripping up Postgres's "is this directory empty" check
+            # on first init, which some CSI/hostPath-backed storage classes
+            # populate.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            failureThreshold: 30
+            periodSeconds: 5
+          # No runAsNonRoot here on purpose: the official postgres image's
+          # entrypoint needs to start as root briefly to chown the mounted
+          # volume, then drops to the postgres user itself via gosu. Forcing
+          # non-root externally breaks that first-boot permission fixup.
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path # k3s's bundled default storage class
+        resources:
+          requests:
+            storage: 5Gi

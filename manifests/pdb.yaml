@@ -1,0 +1,25 @@
+# Ensures a voluntary disruption (node drain, cluster upgrade) can't take
+# down every replica of a tier at once. Paired with terminationGracePeriodSeconds
+# on each Deployment (graceful SIGTERM handling) - see backend/deployment.yaml
+# and frontend/deployment.yaml.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend
+  namespace: taskapp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend
+  namespace: taskapp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend

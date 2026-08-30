@@ -1,0 +1,35 @@
+# Same-origin design (see manifests/README.md and docs/ARCHITECTURE.md for
+# the justification): one host, routed entirely to the frontend Service.
+# The frontend's own nginx config proxies /api internally to backend:5000 -
+# this Ingress doesn't need to know the backend Service exists at all.
+#
+# Domain uses nip.io (wildcard DNS-by-IP, no real DNS record needed) -
+# taskapp.amara.<server-public-ip>.nip.io resolves straight back to the
+# server's Elastic IP. Since that IP is stable (not the admin CIDR that
+# keeps drifting), this only needed setting once. Let's Encrypt's HTTP-01
+# challenge works fine against it - no wildcard cert needed since we're
+# only requesting one specific hostname.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: taskapp
+  namespace: taskapp
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik # k3s's bundled ingress controller - see README for why we kept it
+  tls:
+    - hosts:
+        - taskapp.amara.51.20.201.173.nip.io
+      secretName: taskapp-tls # cert-manager creates/renews this automatically
+  rules:
+    - host: taskapp.amara.51.20.201.173.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

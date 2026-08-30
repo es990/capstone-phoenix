@@ -1,0 +1,11 @@
+---
+ansible_python_interpreter: /usr/bin/python3
+
+# Must match infra/terraform/terraform.tfvars' vpc_cidr - used to scope
+# host-level UFW rules to "internal cluster traffic only", mirroring the
+# AWS security group rules at the OS firewall layer too (defense in depth).
+vpc_cidr: "10.20.0.0/16"
+
+# Pinned so `curl | sh` installs are reproducible, not "whatever's latest
+# today". Bump deliberately - check https://github.com/k3s-io/k3s/releases
+k3s_version: "v1.36.0+k3s1"

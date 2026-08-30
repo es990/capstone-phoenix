@@ -1,0 +1,5 @@
+# Managed by Ansible (k3s-server role) - do not edit by hand.
+tls-san:
+{% for san in k3s_tls_san %}
+  - "{{ san }}"
+{% endfor %}

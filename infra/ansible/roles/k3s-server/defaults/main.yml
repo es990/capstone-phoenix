@@ -1,0 +1,23 @@
+---
+# k3s_version comes from group_vars/all.yml so server and agent always
+# install the exact same version - never overridden per-role.
+
+# Extra flags for the k3s server install.
+# --write-kubeconfig-mode 644 lets a non-root Ansible user read the
+# kubeconfig later for the fetch step, without loosening anything else.
+#
+# DECISION (document this same choice in docs/ARCHITECTURE.md):
+# We keep k3s's bundled Traefik as the ingress controller rather than
+# disabling it - one less moving part for a 3-node capstone. If you'd
+# rather run ingress-nginx instead, add "--disable traefik" here AND
+# install ingress-nginx yourself in the manifests/ phase - not both.
+k3s_server_extra_args: "--write-kubeconfig-mode 644"
+
+k3s_node_token_cache: "{{ playbook_dir }}/.cache/node-token"
+
+# Extra addresses the API server's TLS cert should be valid for. ansible_host
+# here is the server's stable Elastic IP - the address kubectl actually
+# connects to from outside the VPC. Add a domain name to this list later
+# once you've set up Route 53 for the cluster.
+k3s_tls_san:
+  - "{{ ansible_host }}"

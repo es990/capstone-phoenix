@@ -1,0 +1,20 @@
+# Cluster-scoped resource (not namespaced to taskapp), so it lives here in
+# platform/ rather than manifests/. Requires cert-manager already installed -
+# see platform/README.md.
+#
+# REPLACE the email below with your real address - Let's Encrypt uses it
+# for expiry notices, not for anything else.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: amarachukwuesther87@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik
